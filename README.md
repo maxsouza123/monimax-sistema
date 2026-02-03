@@ -1,17 +1,5 @@
 # 🛡️ MoniMax - Sistema de Monitoramento e Segurança Eletrônica
 
-<div align="center">
-  <img src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" alt="MoniMax Banner" width="100%" />
-  
-  [![React](https://img.shields.io/badge/React-19.2.4-61dafb?logo=react)](https://reactjs.org/)
-  [![TypeScript](https://img.shields.io/badge/TypeScript-5.8.2-3178c6?logo=typescript)](https://www.typescriptlang.org/)
-  [![Supabase](https://img.shields.io/badge/Supabase-Latest-3ecf8e?logo=supabase)](https://supabase.com/)
-  [![Vite](https://img.shields.io/badge/Vite-6.2.0-646cff?logo=vite)](https://vitejs.dev/)
-  [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-</div>
-
----
-
 ## 📋 Sobre o Projeto
 
 **MoniMax** é uma plataforma completa de gerenciamento de segurança eletrônica desenvolvida com tecnologias modernas. O sistema oferece monitoramento em tempo real de dispositivos de segurança (câmeras, NVRs, DVRs), reconhecimento de placas veiculares (LPR), gestão de clientes e muito mais.
