@@ -1,0 +1,8 @@
+{
+  "name": "MoniMax Security Console",
+  "description": "A high-performance security monitoring dashboard featuring real-time AI analytics, multi-camera feeds, and remote device management.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
