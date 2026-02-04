@@ -58,7 +58,9 @@ const Devices: React.FC = () => {
     storageConfigId: '',
     recordingMode: 'CONTINUOUS' as 'CONTINUOUS' | 'MOTION' | 'SCHEDULED',
     retentionDays: 7,
-    streamQuality: 'HIGH' as 'HIGH' | 'MEDIUM' | 'LOW'
+    streamQuality: 'HIGH' as 'HIGH' | 'MEDIUM' | 'LOW',
+    scheduleStart: '08:00',
+    scheduleEnd: '18:00'
   });
 
   // Scan State
@@ -68,16 +70,27 @@ const Devices: React.FC = () => {
 
   const generateRtspUrl = (channelOverride?: number) => {
     const { host, port, user, pass, protocol } = formData;
+    const ch = channelOverride || 1;
 
-    // Se o host já for uma URL completa ou um nome de stream interno
-    if (host.startsWith('rtsp://') || (!host.includes('.') && !host.includes(':'))) {
+    // Se o host já for uma URL completa
+    if (host.startsWith('rtsp://')) {
+      // Se for dual lens e modo direto, tentamos substituir /ch1 por /ch2 ou similar
+      if (channelOverride && channelOverride > 1) {
+        if (host.includes('/ch1')) return host.replace('/ch1', `/ch${ch}`);
+        if (host.includes('channel=1')) return host.replace('channel=1', `channel=${ch}`);
+        if (host.includes('/101')) return host.replace('/101', `/${ch}01`);
+        if (host.includes('/stream1')) return host.replace('/stream1', `/stream${ch}`);
+      }
+      return host;
+    }
+
+    // Se for apenas o nome de um stream interno do go2rtc
+    if (!host.includes('.') && !host.includes(':')) {
       return host;
     }
 
     const auth = user && pass ? `${user}:${pass}@` : '';
     const p = port ? `:${port}` : '';
-    // Use channelOverride if provided, otherwise default to channel 1 (or 101 for hikvision)
-    const ch = channelOverride || 1;
 
     switch (protocol) {
       case 'INTELBRAS':
@@ -85,13 +98,14 @@ const Devices: React.FC = () => {
         return `rtsp://${auth}${host}${p}/cam/realmonitor?channel=${ch}&subtype=0`;
       case 'HIKVISION':
       case 'HILOOK':
-        return `rtsp://${auth}${host}${p}/Streaming/Channels/${ch}01`; // 101, 201...
+        return `rtsp://${auth}${host}${p}/Streaming/Channels/${ch}01`;
       case 'TP-LINK':
-        return `rtsp://${auth}${host}${p}/stream${ch}`; // stream1, stream2
+        return `rtsp://${auth}${host}${p}/stream${ch}`;
       case 'RTSP (STREAM DIRETO)':
-        return `rtsp://${auth}${host}${p}/stream`;
+        // Tenta um padrão comum se for dual, senão usa o host puro
+        return ch > 1 ? `rtsp://${auth}${host}${p}/ch${ch}` : `rtsp://${auth}${host}${p}/stream`;
       default:
-        // Padrão ONVIF genérico
+        // Padrão ONVIF genérico variado
         return `rtsp://${auth}${host}${p}/live/ch${ch}`;
     }
   };
@@ -164,7 +178,9 @@ const Devices: React.FC = () => {
         storageConfigId: formData.storageConfigId || null,
         recordingMode: formData.recordingMode,
         retentionDays: formData.retentionDays,
-        streamQuality: formData.streamQuality
+        streamQuality: formData.streamQuality,
+        scheduleStart: formData.scheduleStart,
+        scheduleEnd: formData.scheduleEnd
       });
 
       if (editingDeviceId) {
@@ -184,25 +200,57 @@ const Devices: React.FC = () => {
         const baseStreamName = formData.name.toLowerCase().replace(/\s+/g, '_');
         const go2rtcUrl = 'http://127.0.0.1:1984';
 
+        // Obter configuração de storage para gravação
+        const storageConfig = storageConfigs.find(c => c.id === formData.storageConfigId);
+        const isLocalRecording = formData.recordingEnabled && storageConfig?.type === 'LOCAL';
+        const rawLocalPath = storageConfig?.localPath || '';
+        // Normalizar caminho para o FFmpeg (usar forward slashes para evitar problemas de escape)
+        const localPath = rawLocalPath.replace(/\\/g, '/');
+
+        const registerStream = async (name: string, rtsp: string) => {
+          // go2rtc API aceita múltiplos parâmetros 'src'
+          const url = new URL(`${go2rtcUrl}/api/streams`);
+          url.searchParams.append('name', name);
+          if (isLocalRecording && localPath) {
+            // Usamos caminho curto (8.3) SEM ASPAS para o script, evitando qualquer erro de parsing
+            // C:\Users\Usuário\Documents\Aplicação MoniMax\MoniMax sistema -> C:\Users\USURIO~2\DOCUME~1\APLICA~2\MONIMA~2
+            const scriptPath = "C:\\Users\\USURIO~2\\DOCUME~1\\APLICA~2\\MONIMA~2\\record_stream.bat";
+
+            // Construção do caminho de saída SAFE (Curto)
+            // Substituímos a parte problemática do caminho do usuário por short path
+            let safeLocalPath = localPath;
+            if (localPath.toLowerCase().includes('users') && localPath.toLowerCase().includes('usuário')) {
+              safeLocalPath = localPath.replace(/C:[\\\/]Users[\\\/]Usuário[\\\/]Documents/gi, 'C:\\Users\\USURIO~2\\DOCUME~1');
+            }
+            // Garante backslashes
+            safeLocalPath = safeLocalPath.replace(/\//g, '\\');
+
+            // Argumentos do arquivo
+            const outputPattern = `${safeLocalPath}\\${name}_%Y-%m-%d_%H-%M-%S.mp4`;
+
+            // Comando FINAL, Otimizado e Blindado:
+            // exec:cmd /C SCRIPT RTSP OUTPUT
+            // Sem aspas extras no script path porque ele não tem espaços (é short path)
+            const recordCmd = `exec:cmd /C ${scriptPath} "${rtsp}" "${outputPattern}"`;
+
+            url.searchParams.append('src', recordCmd);
+            console.log(`Configurando gravação (NO-QUOTES Script): ${recordCmd}`);
+
+          } else {
+            // Se não estiver gravando, usamos o RTSP direto como fonte
+            url.searchParams.append('src', rtsp);
+            console.log(`Configurando stream direto: ${rtsp}`);
+          }
+
+          await fetch(url.toString(), { method: 'PUT' })
+            .catch(e => console.warn(`Falha no registro go2rtc ${name}:`, e));
+        };
+
         if (isDual) {
-          // Register Lens 1 (Channel 1)
-          const rtspUrl1 = generateRtspUrl(1);
-          await fetch(`${go2rtcUrl}/api/streams?name=${baseStreamName}_1&src=${encodeURIComponent(rtspUrl1)}`, {
-            method: 'PUT'
-          }).catch(e => console.warn('Falha no registro go2rtc Lens 1:', e));
-
-          // Register Lens 2 (Channel 2)
-          const rtspUrl2 = generateRtspUrl(2);
-          await fetch(`${go2rtcUrl}/api/streams?name=${baseStreamName}_2&src=${encodeURIComponent(rtspUrl2)}`, {
-            method: 'PUT'
-          }).catch(e => console.warn('Falha no registro go2rtc Lens 2:', e));
-
+          await registerStream(`${baseStreamName}_1`, generateRtspUrl(1));
+          await registerStream(`${baseStreamName}_2`, generateRtspUrl(2));
         } else {
-          // Standard Single Lens
-          const rtspUrl = generateRtspUrl(1);
-          await fetch(`${go2rtcUrl}/api/streams?name=${baseStreamName}&src=${encodeURIComponent(rtspUrl)}`, {
-            method: 'PUT'
-          }).catch(e => console.warn('Falha no registro go2rtc:', e));
+          await registerStream(baseStreamName, generateRtspUrl(1));
         }
       }
 
@@ -231,7 +279,9 @@ const Devices: React.FC = () => {
       storageConfigId: device.storageConfigId || '',
       recordingMode: device.recordingMode || 'CONTINUOUS',
       retentionDays: device.retentionDays || 7,
-      streamQuality: device.streamQuality || 'HIGH'
+      streamQuality: device.streamQuality || 'HIGH',
+      scheduleStart: device.scheduleStart || '08:00',
+      scheduleEnd: device.scheduleEnd || '18:00'
     });
     setEditingDeviceId(device.id);
     setActiveTab('form');
@@ -276,7 +326,9 @@ const Devices: React.FC = () => {
       storageConfigId: '',
       recordingMode: 'CONTINUOUS',
       retentionDays: 7,
-      streamQuality: 'HIGH'
+      streamQuality: 'HIGH',
+      scheduleStart: '08:00',
+      scheduleEnd: '18:00'
     });
   };
 
@@ -634,6 +686,29 @@ const Devices: React.FC = () => {
                             </select>
                           </div>
                         </div>
+
+                        {formData.recordingMode === 'SCHEDULED' && (
+                          <div className="grid grid-cols-2 gap-4 mt-2 p-2 bg-background-dark/30 rounded-lg border border-border-dark/50">
+                            <div className="space-y-1">
+                              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Início (HH:mm)</label>
+                              <input
+                                type="time"
+                                value={formData.scheduleStart}
+                                onChange={e => setFormData({ ...formData, scheduleStart: e.target.value })}
+                                className="w-full bg-[#111621] border border-border-dark/50 rounded-lg text-xs text-white p-2 outline-none focus:ring-1 focus:ring-primary"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Fim (HH:mm)</label>
+                              <input
+                                type="time"
+                                value={formData.scheduleEnd}
+                                onChange={e => setFormData({ ...formData, scheduleEnd: e.target.value })}
+                                className="w-full bg-[#111621] border border-border-dark/50 rounded-lg text-xs text-white p-2 outline-none focus:ring-1 focus:ring-primary"
+                              />
+                            </div>
+                          </div>
+                        )}
 
                         <div className="space-y-1 mt-2">
                           <div className="flex justify-between items-center">

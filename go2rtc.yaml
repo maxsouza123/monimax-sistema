@@ -13,7 +13,7 @@ webrtc:
 
 # Essa secao gerencia a traducao de video para cameras reais
 ffmpeg:
-  bin: ffmpeg # O arquivo ffmpeg.exe deve estar na pasta ou no PATH do Windows
+  bin: ./ffmpeg.exe # O arquivo ffmpeg.exe deve estar na pasta ou no PATH do Windows
 
 # Streams dinâmicos serão criados automaticamente pelo MoniMax
 streams:
@@ -52,6 +52,14 @@ streams:
     - rtsp://admin:Mudar@1213@192.168.12.8:554/live/ch1
   dual_2:
     - rtsp://admin:Mudar@1213@192.168.12.8:554/live/ch2
+  test_1770240922149:
+    - rtsp://admin:Mudar@1213@192.168.12.8:554/live/ch1
+  test_1770241211179:
+    - rtsp://admin:Mudar@1213@192.168.12.8:554/live/ch1
+  test_1770243517494:
+    - rtsp://admin:Mudar@1213@192.168.12.8:554/live/ch1
+  test_1770245939069:
+    - rtsp://admin:Mudar@1213@192.168.12.8:554/live/ch1
 
 log:
   level: info

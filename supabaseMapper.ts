@@ -28,6 +28,8 @@ export const SupabaseMapper = {
             recordingMode: dbDevice.recording_mode,
             retentionDays: dbDevice.retention_days,
             streamQuality: dbDevice.stream_quality,
+            scheduleStart: dbDevice.schedule_start,
+            scheduleEnd: dbDevice.schedule_end,
         };
     },
 
@@ -50,6 +52,8 @@ export const SupabaseMapper = {
             recording_mode: device.recordingMode,
             retention_days: device.retentionDays,
             stream_quality: device.streamQuality,
+            schedule_start: device.scheduleStart,
+            schedule_end: device.scheduleEnd,
         };
     },
 

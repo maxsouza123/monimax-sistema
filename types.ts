@@ -26,6 +26,8 @@ export interface Device {
   recordingMode?: 'CONTINUOUS' | 'MOTION' | 'SCHEDULED';
   retentionDays?: number;
   streamQuality?: 'HIGH' | 'MEDIUM' | 'LOW';
+  scheduleStart?: string;
+  scheduleEnd?: string;
 }
 
 export interface SecurityEvent {
