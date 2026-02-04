@@ -47,6 +47,7 @@ export interface Camera {
   latency: number;
   ip: string;
   client?: string; // Nome do cliente/projeto
+  streamName?: string; // Nome do stream no go2rtc
 }
 
 export interface ChatMessage {

@@ -76,15 +76,28 @@ const Monitor: React.FC = () => {
     const directCameras = cameras;
     const deviceCameras: Camera[] = devices
       .filter(d => d.type === 'CAMERA')
-      .map(d => ({
-        id: d.id,
-        name: d.name,
-        status: d.status,
-        brand: d.protocol || 'Generic',
-        latency: Math.floor(Math.random() * 50) + 10,
-        ip: d.ip,
-        client: d.clientId
-      }));
+      .flatMap(d => {
+        const isDual = d.model.toUpperCase().includes('DUAL') || d.name.toUpperCase().includes('DUAL');
+        const baseCam = {
+          id: d.id,
+          name: d.name,
+          status: d.status,
+          brand: d.protocol || 'Generic',
+          latency: Math.floor(Math.random() * 50) + 10,
+          ip: d.ip,
+          client: d.clientId,
+          streamName: d.name.toLowerCase().replace(/\s+/g, '_')
+        };
+
+        if (isDual) {
+          return [
+            { ...baseCam, id: `${d.id}_lens1`, name: `${d.name} (Lente 1)`, streamName: `${baseCam.streamName}_1` },
+            { ...baseCam, id: `${d.id}_lens2`, name: `${d.name} (Lente 2)`, streamName: `${baseCam.streamName}_2` }
+          ];
+        }
+
+        return [baseCam];
+      });
 
     const combined = [...directCameras, ...deviceCameras];
     const unique = Array.from(new Map(combined.map(c => [c.id, c])).values());

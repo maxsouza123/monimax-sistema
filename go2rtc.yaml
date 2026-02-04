@@ -26,6 +26,32 @@ streams:
     - rtsp://maximoswill2@gmail.com:Mudar@123@192.168.1.15:8080/cam/realmonitor?channel=1&subtype=0
   ip_camera_001:
     - rtsp://maximoswill2@gmail.com:Mudar@123@192.168.1.15:8080/cam/realmonitor?channel=1&subtype=0
+  camera_portão:
+    - rtsp://admin:Mudar@1213@192.168.12.8:554/live/ch1
+  test_1770210548650:
+    - rtsp://maximoswill2@gmail.com:Mudar@123@192.168.12.8:554/live/ch1
+  test_1770210633314:
+    - rtsp://maximoswill2@gmail.com:Mudar@1213@192.168.12.8:554/live/ch1
+  test_1770210650937:
+    - rtsp://maximoswill2@gmail.com:Mudar@1213@192.168.12.8:554/live/ch1
+  test_1770210661378:
+    - rtsp://maximoswill2@gmail.com:Mudar@123@192.168.12.8:554/live/ch1
+  test_1770210810120:
+    - rtsp://maximoswill2@gmail.com:Mudar@1213@192.168.12.8:554/live/ch1
+  test_1770210891503:
+    - rtsp://admin:Mudar@1213@192.168.12.8:554/live/ch1
+  test_1770211331203:
+    - rtsp://admin:Mudar@1213@192.168.12.8:554/live/ch1
+  test_1770211369842:
+    - rtsp://admin:Mudar@1213@192.168.12.8:554/live/ch1
+  dual:
+    - rtsp://admin:Mudar@1213@192.168.12.8:554/live/ch1
+  test_1770211432442:
+    - rtsp://admin:Mudar@1213@192.168.12.8:554/live/ch1
+  dual_1:
+    - rtsp://admin:Mudar@1213@192.168.12.8:554/live/ch1
+  dual_2:
+    - rtsp://admin:Mudar@1213@192.168.12.8:554/live/ch2
 
 log:
   level: info

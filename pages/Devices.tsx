@@ -66,7 +66,7 @@ const Devices: React.FC = () => {
   const [scanProgress, setScanProgress] = useState(0);
   const [foundDevices, setFoundDevices] = useState<{ ip: string, name: string, brand: string, port: number, type?: string }[]>([]);
 
-  const generateRtspUrl = () => {
+  const generateRtspUrl = (channelOverride?: number) => {
     const { host, port, user, pass, protocol } = formData;
 
     // Se o host já for uma URL completa ou um nome de stream interno
@@ -74,24 +74,25 @@ const Devices: React.FC = () => {
       return host;
     }
 
-
     const auth = user && pass ? `${user}:${pass}@` : '';
     const p = port ? `:${port}` : '';
+    // Use channelOverride if provided, otherwise default to channel 1 (or 101 for hikvision)
+    const ch = channelOverride || 1;
 
     switch (protocol) {
       case 'INTELBRAS':
       case 'DAHUA TECHNOLOGY':
-        return `rtsp://${auth}${host}${p}/cam/realmonitor?channel=1&subtype=0`;
+        return `rtsp://${auth}${host}${p}/cam/realmonitor?channel=${ch}&subtype=0`;
       case 'HIKVISION':
       case 'HILOOK':
-        return `rtsp://${auth}${host}${p}/Streaming/Channels/101`;
+        return `rtsp://${auth}${host}${p}/Streaming/Channels/${ch}01`; // 101, 201...
       case 'TP-LINK':
-        return `rtsp://${auth}${host}${p}/stream1`;
+        return `rtsp://${auth}${host}${p}/stream${ch}`; // stream1, stream2
       case 'RTSP (STREAM DIRETO)':
         return `rtsp://${auth}${host}${p}/stream`;
       default:
         // Padrão ONVIF genérico
-        return `rtsp://${auth}${host}${p}/live/ch1`;
+        return `rtsp://${auth}${host}${p}/live/ch${ch}`;
     }
   };
 
@@ -105,7 +106,7 @@ const Devices: React.FC = () => {
     setTestSuccess(null);
     setPreviewStream(null);
 
-    const rtspUrl = generateRtspUrl();
+    const rtspUrl = generateRtspUrl(1);
     const streamName = `test_${Date.now()}`;
     const hostname = window.location.hostname;
     const isLocal = hostname === 'localhost' || hostname === '127.0.0.1';
@@ -179,14 +180,30 @@ const Devices: React.FC = () => {
 
       // Se for câmera, registrar permanentemente no go2rtc
       if (formData.type === 'CAMERA') {
-        const rtspUrl = generateRtspUrl();
-        const streamName = formData.name.toLowerCase().replace(/\s+/g, '_');
+        const isDual = formData.name.toUpperCase().includes('DUAL') || formData.protocol.toUpperCase().includes('DUAL');
+        const baseStreamName = formData.name.toLowerCase().replace(/\s+/g, '_');
         const go2rtcUrl = 'http://127.0.0.1:1984';
 
-        // Registra o stream com suporte a transcodificação se necessário
-        await fetch(`${go2rtcUrl}/api/streams?name=${streamName}&src=${encodeURIComponent(rtspUrl)}`, {
-          method: 'PUT'
-        }).catch(e => console.warn('Falha no registro go2rtc:', e));
+        if (isDual) {
+          // Register Lens 1 (Channel 1)
+          const rtspUrl1 = generateRtspUrl(1);
+          await fetch(`${go2rtcUrl}/api/streams?name=${baseStreamName}_1&src=${encodeURIComponent(rtspUrl1)}`, {
+            method: 'PUT'
+          }).catch(e => console.warn('Falha no registro go2rtc Lens 1:', e));
+
+          // Register Lens 2 (Channel 2)
+          const rtspUrl2 = generateRtspUrl(2);
+          await fetch(`${go2rtcUrl}/api/streams?name=${baseStreamName}_2&src=${encodeURIComponent(rtspUrl2)}`, {
+            method: 'PUT'
+          }).catch(e => console.warn('Falha no registro go2rtc Lens 2:', e));
+
+        } else {
+          // Standard Single Lens
+          const rtspUrl = generateRtspUrl(1);
+          await fetch(`${go2rtcUrl}/api/streams?name=${baseStreamName}&src=${encodeURIComponent(rtspUrl)}`, {
+            method: 'PUT'
+          }).catch(e => console.warn('Falha no registro go2rtc:', e));
+        }
       }
 
 
