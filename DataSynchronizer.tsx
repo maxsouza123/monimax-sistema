@@ -1,8 +1,8 @@
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { supabase, checkSupabaseConnection } from './supabaseClient';
 import { SupabaseMapper } from './supabaseMapper';
-import { Device, SecurityEvent, Camera, Client, StorageConfig, SuspiciousPlate, UserProfile, ModulePermission, AlertRule, KanbanColumn, KanbanCard, ChatMessage, SystemSettings } from './types';
+import { Device, SecurityEvent, Camera, Client, StorageConfig, SuspiciousPlate, UserProfile, ModulePermission, AlertRule, KanbanColumn, KanbanCard, ChatMessage, SystemSettings, ServiceOrder } from './types';
 
 interface SyncContextType {
     isConnected: boolean;
@@ -20,9 +20,10 @@ interface SyncContextType {
     kanbanColumns: KanbanColumn[];
     kanbanCards: KanbanCard[];
     chatMessages: ChatMessage[];
+    serviceOrders: ServiceOrder[];
     systemSettings: SystemSettings | null;
     error: string | null;
-    refreshData: () => Promise<void>;
+    refreshData: (target?: string) => Promise<void>;
 }
 
 const SyncContext = createContext<SyncContextType | undefined>(undefined);
@@ -43,143 +44,176 @@ export const DataSynchronizer: React.FC<{ children: React.ReactNode }> = ({ chil
     const [kanbanColumns, setKanbanColumns] = useState<KanbanColumn[]>([]);
     const [kanbanCards, setKanbanCards] = useState<KanbanCard[]>([]);
     const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+    const [serviceOrders, setServiceOrders] = useState<ServiceOrder[]>([]);
     const [systemSettings, setSystemSettings] = useState<SystemSettings | null>(null);
     const [error, setError] = useState<string | null>(null);
 
-    const syncRef = React.useRef(false);
+    const syncInProgress = useRef(false);
 
-    const fetchInitialData = async () => {
-        if (syncRef.current) return;
+    // --- Funções Granulares de Busca ---
+    const fetchUserProfile = async (userId: string) => {
+        const { data: profile } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
+        if (profile) {
+            setUserProfile(SupabaseMapper.toUserProfile(profile));
+        } else {
+            setUserProfile({
+                id: userId,
+                role: 'OPERADOR',
+                fullName: 'Usuário MoniMax'
+            });
+        }
+    };
 
-        syncRef.current = true;
+    const fetchDevices = async () => {
+        const { data } = await supabase.from('devices').select('*');
+        if (data) setDevices(data.map(SupabaseMapper.toDevice));
+    };
+
+    const fetchEvents = async () => {
+        const { data } = await supabase.from('security_events').select('*').order('timestamp', { ascending: false }).limit(20);
+        if (data) setEvents(data.map(SupabaseMapper.toSecurityEvent));
+    };
+
+    const fetchCameras = async () => {
+        const { data } = await supabase.from('cameras').select('*');
+        if (data) setCameras(data.map(SupabaseMapper.toCamera));
+    };
+
+    const fetchClients = async () => {
+        const { data } = await supabase.from('clients').select('*').order('name', { ascending: true });
+        if (data) setClients(data.map(SupabaseMapper.toClient));
+    };
+
+    const fetchStorageConfigs = async () => {
+        const { data } = await supabase.from('storage_configs').select('*').order('name', { ascending: true });
+        if (data) setStorageConfigs(data.map(SupabaseMapper.toStorageConfig));
+    };
+
+    const fetchSuspiciousPlates = async () => {
+        const { data } = await supabase.from('suspicious_plates').select('*').order('created_at', { ascending: false });
+        if (data) setSuspiciousPlates(data.map(SupabaseMapper.toSuspiciousPlate));
+    };
+
+    const fetchPermissions = async () => {
+        const { data } = await supabase.from('module_permissions').select('*').order('position', { ascending: true });
+        if (data) setPermissions(data.map(SupabaseMapper.toModulePermission));
+    };
+
+    const fetchAlertRules = async () => {
+        const { data } = await supabase.from('alert_rules').select('*').order('created_at', { ascending: false });
+        if (data) setAlertRules(data.map(SupabaseMapper.toAlertRule));
+    };
+
+    const fetchKanban = async () => {
+        const [cols, crds] = await Promise.all([
+            supabase.from('kanban_columns').select('*').order('position', { ascending: true }),
+            supabase.from('kanban_cards').select('*').order('position', { ascending: true })
+        ]);
+        if (cols.data) setKanbanColumns(cols.data.map(SupabaseMapper.toKanbanColumn));
+        if (crds.data) setKanbanCards(crds.data.map(SupabaseMapper.toKanbanCard));
+    };
+
+    const fetchServiceOrders = async () => {
+        const { data } = await supabase.from('service_orders').select('*').order('created_at', { ascending: false });
+        if (data) setServiceOrders(data.map(SupabaseMapper.toServiceOrder));
+    };
+
+    const fetchChat = async () => {
+        const { data: messages } = await supabase.from('chat_messages').select('*').order('created_at', { ascending: true }).limit(50);
+        if (messages) {
+            const { data: { user: currentUser } } = await supabase.auth.getUser();
+            setChatMessages(messages.map(m => SupabaseMapper.toChatMessage(m, currentUser?.id)));
+        }
+    };
+
+    const fetchSettings = async () => {
+        const { data } = await supabase.from('system_settings').select('*');
+        if (data && data.length > 0) {
+            const branding = data.find(s => s.id === 'branding');
+            if (branding) setSystemSettings(SupabaseMapper.toSystemSettings(branding));
+        }
+    };
+
+    const fetchAllData = useCallback(async (target?: string) => {
+        if (syncInProgress.current && !target) return;
+        syncInProgress.current = true;
         setIsSyncing(true);
         setError(null);
 
         try {
-            console.log('Iniciando sincronização...');
+            console.log(`Sincronizando: ${target || 'Tudo'}...`);
 
-            // 1. Prioridade: Buscar Perfil do Usuário para liberar os menus
-            const { data: { session } } = await supabase.auth.getSession();
-            const currentUser = session?.user;
-
-            if (currentUser) {
-                setUser(currentUser);
-                const { data: profile } = await supabase
-                    .from('profiles')
-                    .select('*')
-                    .eq('id', currentUser.id)
-                    .maybeSingle();
-
-                if (profile) {
-                    setUserProfile(SupabaseMapper.toUserProfile(profile));
-                } else {
-                    // Fallback para admin master se der erro ou não existir perfil
-                    setUserProfile({
-                        id: currentUser.id,
-                        role: currentUser.email === 'admin@monimax.com' ? 'ADMIN' : 'OPERADOR',
-                        fullName: 'Usuário MoniMax'
-                    });
+            if (target === 'devices') await fetchDevices();
+            else if (target === 'events') await fetchEvents();
+            else if (target === 'cameras') await fetchCameras();
+            else if (target === 'clients') await fetchClients();
+            else if (target === 'kanban') await fetchKanban();
+            else if (target === 'chat') await fetchChat();
+            else if (target === 'service_orders') await fetchServiceOrders();
+            else if (target === 'plates') await fetchSuspiciousPlates();
+            else {
+                // Sincronização Inicial Completa
+                const { data: { session } } = await supabase.auth.getSession();
+                if (session?.user) {
+                    setUser(session.user);
+                    await fetchUserProfile(session.user.id);
                 }
+
+                await Promise.all([
+                    fetchDevices(),
+                    fetchEvents(),
+                    fetchCameras(),
+                    fetchClients(),
+                    fetchStorageConfigs(),
+                    fetchSuspiciousPlates(),
+                    fetchPermissions(),
+                    fetchAlertRules(),
+                    fetchKanban(),
+                    fetchChat(),
+                    fetchServiceOrders(),
+                    fetchSettings()
+                ]);
             }
-
-            // 2. Buscar Dados Secundários em paralelo
-            const [devs, evs, cams, cls, stor, plates, perms] = await Promise.all([
-                supabase.from('devices').select('*'),
-                supabase.from('security_events').select('*').order('timestamp', { ascending: false }).limit(20),
-                supabase.from('cameras').select('*'),
-                supabase.from('clients').select('*').order('name', { ascending: true }),
-                supabase.from('storage_configs').select('*').order('name', { ascending: true }),
-                supabase.from('suspicious_plates').select('*').order('plate', { ascending: true }),
-                supabase.from('module_permissions').select('*').order('position', { ascending: true }),
-                supabase.from('alert_rules').select('*').order('created_at', { ascending: false })
-            ]);
-
-            if (devs.data) setDevices(devs.data.map(SupabaseMapper.toDevice));
-            if (evs.data) setEvents(evs.data.map(SupabaseMapper.toSecurityEvent));
-            if (cams.data) setCameras(cams.data.map(SupabaseMapper.toCamera));
-            if (cls.data) setClients(cls.data.map(SupabaseMapper.toClient));
-            if (stor.data) setStorageConfigs(stor.data.map(SupabaseMapper.toStorageConfig));
-            if (plates.data) setSuspiciousPlates(plates.data.map(SupabaseMapper.toSuspiciousPlate));
-            if (perms.data) setPermissions(perms.data.map(SupabaseMapper.toModulePermission));
-
-            const alertRes = await supabase.from('alert_rules').select('*').order('created_at', { ascending: false });
-            if (alertRes.data) setAlertRules(alertRes.data.map(SupabaseMapper.toAlertRule));
-
-            const kanbanColRes = await supabase.from('kanban_columns').select('*').order('position', { ascending: true });
-            if (kanbanColRes.data) setKanbanColumns(kanbanColRes.data.map(SupabaseMapper.toKanbanColumn));
-
-            const kanbanCardRes = await supabase.from('kanban_cards').select('*').order('position', { ascending: true });
-            if (kanbanCardRes.data) setKanbanCards(kanbanCardRes.data.map(SupabaseMapper.toKanbanCard));
-
-            const chatRes = await supabase.from('chat_messages').select('*').order('created_at', { ascending: true }).limit(50);
-            if (chatRes.data) {
-                const { data: { user: currentUser } } = await supabase.auth.getUser();
-                setChatMessages(chatRes.data.map(m => SupabaseMapper.toChatMessage(m, currentUser?.id)));
-            }
-
-            const { data: settingsData, error: settingsError } = await supabase.from('system_settings').select('*');
-            if (settingsData && settingsData.length > 0) {
-                const branding = settingsData.find(s => s.id === 'branding');
-                if (branding) setSystemSettings(SupabaseMapper.toSystemSettings(branding));
-            }
-            if (settingsError) console.error('Erro ao buscar branding:', settingsError);
-
         } catch (err: any) {
-            console.error('Falha na sincronização:', err.message);
-            setError('Instabilidade na conexão. Reconectando...');
+            console.error('Erro na sincronização:', err.message);
+            setError('Erro de conexão. Tentando reconectar...');
         } finally {
-            syncRef.current = false;
+            syncInProgress.current = false;
             setIsSyncing(false);
         }
-    };
+    }, []);
 
     useEffect(() => {
-        // Inicialização
         const setup = async () => {
             const { connected } = await checkSupabaseConnection();
             setIsConnected(connected);
-            await fetchInitialData();
+            await fetchAllData();
         };
         setup();
 
-        // Listener de Autenticação
-        const { data: { subscription: authListener } } = supabase.auth.onAuthStateChange((_event, session) => {
-            if (_event === 'SIGNED_IN' || _event === 'TOKEN_REFRESHED') {
-                fetchInitialData();
-            } else if (_event === 'SIGNED_OUT') {
+        const { data: { subscription: authListener } } = supabase.auth.onAuthStateChange((event, session) => {
+            if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+                fetchAllData();
+            } else if (event === 'SIGNED_OUT') {
                 setUser(null);
                 setUserProfile(null);
             }
         });
 
-        // Canais Realtime
-        const mainChannel = supabase.channel('realtime_updates')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'devices' }, () => {
-                fetchInitialData();
-            })
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'module_permissions' }, () => {
-                fetchInitialData();
-            })
-            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles' }, async (payload) => {
-                const { data: { user: currentUser } } = await supabase.auth.getUser();
-                if (currentUser && payload.new.id === currentUser.id) {
-                    setUserProfile(SupabaseMapper.toUserProfile(payload.new));
-                }
-            })
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'alert_rules' }, () => {
-                fetchInitialData();
-            })
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'kanban_columns' }, () => {
-                fetchInitialData();
-            })
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'kanban_cards' }, () => {
-                fetchInitialData();
-            })
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_messages' }, () => {
-                fetchInitialData();
-            })
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'system_settings' }, () => {
-                fetchInitialData();
+        // Canais Realtime Otimizados (Atualizam apenas o necessário)
+        const channel = supabase.channel('global_sync')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'devices' }, () => fetchDevices())
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'security_events' }, () => fetchEvents())
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'cameras' }, () => fetchCameras())
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'clients' }, () => fetchClients())
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'kanban_columns' }, () => fetchKanban())
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'kanban_cards' }, () => fetchKanban())
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_messages' }, () => fetchChat())
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'service_orders' }, () => fetchServiceOrders())
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'suspicious_plates' }, () => fetchSuspiciousPlates())
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'system_settings' }, () => fetchSettings())
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles' }, (payload) => {
+                if (user && payload.new.id === user.id) fetchUserProfile(user.id);
             })
             .subscribe();
 
@@ -187,7 +221,7 @@ export const DataSynchronizer: React.FC<{ children: React.ReactNode }> = ({ chil
             supabase.removeAllChannels();
             authListener.unsubscribe();
         };
-    }, []);
+    }, [fetchAllData, user]);
 
     return (
         <SyncContext.Provider value={{
@@ -206,20 +240,20 @@ export const DataSynchronizer: React.FC<{ children: React.ReactNode }> = ({ chil
             kanbanColumns,
             kanbanCards,
             chatMessages,
+            serviceOrders,
             systemSettings,
             error,
-            refreshData: fetchInitialData
+            refreshData: fetchAllData
         }}>
-            {/* Indicador de Carregamento / Erro Global */}
             {isSyncing && (
-                <div className="fixed bottom-4 right-4 bg-primary text-white px-4 py-2 rounded-lg shadow-lg z-50 flex items-center gap-2 animate-pulse">
-                    <span className="material-symbols-outlined spin">sync</span>
-                    Sincronizando...
+                <div className="fixed bottom-4 right-4 bg-primary text-white px-3 py-1.5 rounded-full shadow-2xl z-50 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest animate-in slide-in-from-bottom-4">
+                    <span className="material-symbols-outlined text-[14px] animate-spin">refresh</span>
+                    <span>Sincronizando</span>
                 </div>
             )}
             {error && (
-                <div className="fixed top-4 right-4 bg-red-600 text-white px-4 py-2 rounded-lg shadow-lg z-50 flex items-center gap-2">
-                    <span className="material-symbols-outlined">error</span>
+                <div className="fixed top-4 right-4 bg-red-500 text-white px-4 py-2 rounded-xl shadow-lg z-50 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest">
+                    <span className="material-symbols-outlined text-sm">cloud_off</span>
                     {error}
                 </div>
             )}
@@ -230,9 +264,7 @@ export const DataSynchronizer: React.FC<{ children: React.ReactNode }> = ({ chil
 
 export const useSync = () => {
     const context = useContext(SyncContext);
-    if (context === undefined) {
-        throw new Error('useSync deve ser usado dentro de um DataSynchronizer');
-    }
+    if (context === undefined) throw new Error('useSync deve ser usado dentro de um DataSynchronizer');
     return context;
 };
 

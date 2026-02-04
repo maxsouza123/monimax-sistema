@@ -14,7 +14,13 @@ const Alerts: React.FC = () => {
   // States para criação/edição de Cards
   const [isAddingCard, setIsAddingCard] = useState<string | null>(null);
   const [editingCard, setEditingCard] = useState<KanbanCard | null>(null);
-  const [cardData, setCardData] = useState({ title: '', description: '', severity: 'INFO' });
+  const [cardData, setCardData] = useState({
+    title: '',
+    description: '',
+    severity: 'INFO',
+    createdBy: '',
+    assignedTo: ''
+  });
 
   // --- Column Actions ---
   const handleSaveColumn = async () => {
@@ -68,7 +74,9 @@ const Alerts: React.FC = () => {
           .update({
             title: cardData.title,
             description: cardData.description,
-            severity: cardData.severity
+            severity: cardData.severity,
+            created_by: cardData.createdBy,
+            assigned_to: cardData.assignedTo
           })
           .eq('id', editingCard.id);
         if (error) throw error;
@@ -79,11 +87,13 @@ const Alerts: React.FC = () => {
           title: cardData.title,
           description: cardData.description,
           severity: cardData.severity,
-          position: columnCards.length
+          position: columnCards.length,
+          created_by: cardData.createdBy,
+          assigned_to: cardData.assignedTo
         });
         if (error) throw error;
       }
-      setCardData({ title: '', description: '', severity: 'INFO' });
+      setCardData({ title: '', description: '', severity: 'INFO', createdBy: '', assignedTo: '' });
       setIsAddingCard(null);
       setEditingCard(null);
       await refreshData();
@@ -108,7 +118,9 @@ const Alerts: React.FC = () => {
     setCardData({
       title: card.title,
       description: card.description || '',
-      severity: card.severity
+      severity: card.severity,
+      createdBy: card.createdBy || '',
+      assignedTo: card.assignedTo || ''
     });
     setIsAddingCard(card.columnId);
   };
@@ -250,6 +262,28 @@ const Alerts: React.FC = () => {
                     </div>
                   </div>
                   <h4 className="text-white text-xs font-bold leading-tight uppercase tracking-tight mb-1">{card.title}</h4>
+
+                  {/* Fluxo de Atividade (De: / Para:) */}
+                  {(card.createdBy || card.assignedTo) && (
+                    <div className="flex items-center gap-2 mb-2 px-2 py-1 bg-white/5 rounded-lg border border-white/5">
+                      {card.createdBy && (
+                        <div className="flex items-center gap-1">
+                          <span className="text-[7px] text-slate-500 font-black uppercase tracking-widest italic">De:</span>
+                          <span className="text-[8px] text-primary font-black uppercase tracking-tighter">{card.createdBy}</span>
+                        </div>
+                      )}
+                      {card.createdBy && card.assignedTo && (
+                        <span className="material-symbols-outlined text-[10px] text-slate-700">arrow_forward</span>
+                      )}
+                      {card.assignedTo && (
+                        <div className="flex items-center gap-1">
+                          <span className="text-[7px] text-slate-500 font-black uppercase tracking-widest italic">Para:</span>
+                          <span className="text-[8px] text-yellow-500 font-black uppercase tracking-tighter">{card.assignedTo}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {card.description && (
                     <p className="text-slate-500 text-[10px] line-clamp-2 mt-1">{card.description}</p>
                   )}
@@ -292,6 +326,37 @@ const Alerts: React.FC = () => {
                     </div>
                   </div>
 
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1 block italic">De: (Quem abriu)</label>
+                      <select
+                        value={cardData.createdBy}
+                        onChange={e => setCardData({ ...cardData, createdBy: e.target.value })}
+                        className="w-full bg-[#111621] text-white text-[10px] font-bold p-2 rounded-lg border border-border-dark outline-none focus:border-primary/50"
+                      >
+                        <option value="">Selecione...</option>
+                        <option value="OPERADOR">OPERADOR</option>
+                        <option value="TATICO">TÁTICO</option>
+                        <option value="ADMIN">ADMIN</option>
+                        <option value="IA">IA (SISTEMA)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1 block italic">Para: (Destinado)</label>
+                      <select
+                        value={cardData.assignedTo}
+                        onChange={e => setCardData({ ...cardData, assignedTo: e.target.value })}
+                        className="w-full bg-[#111621] text-white text-[10px] font-bold p-2 rounded-lg border border-border-dark outline-none focus:border-primary/50"
+                      >
+                        <option value="">Selecione...</option>
+                        <option value="TATICO">TÁTICO</option>
+                        <option value="OPERADOR">OPERADOR</option>
+                        <option value="CLIENTE">CLIENTE</option>
+                        <option value="ADMIN">ADMIN</option>
+                      </select>
+                    </div>
+                  </div>
+
                   <div>
                     <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1 block">Detalhes (Opcional)</label>
                     <textarea
@@ -311,7 +376,7 @@ const Alerts: React.FC = () => {
                     </button>
                     <button
                       onClick={() => handleSaveCard(col.id)}
-                      className="flex-1 bg-primary text-white text-[9px] font-black py-2 rounded-lg shadow-lg shadow-primary/20 hover:bg-primary/80"
+                      className="flex-1 bg-primary text-white text-[10px] font-black py-2 rounded-lg shadow-lg shadow-primary/20 hover:bg-primary/80"
                     >
                       {editingCard ? 'ATUALIZAR' : 'SALVAR'}
                     </button>

@@ -1,0 +1,32 @@
+# Configuracao MoniMax - PRODUCAO V1
+api:
+  listen: ":1984"
+  origin: "*"
+
+rtsp:
+  listen: ":8554"
+
+webrtc:
+  listen: ":8555"
+  candidates:
+    - stun:8555
+
+# Essa secao gerencia a traducao de video para cameras reais
+ffmpeg:
+  bin: ffmpeg # O arquivo ffmpeg.exe deve estar na pasta ou no PATH do Windows
+
+# Streams dinâmicos serão criados automaticamente pelo MoniMax
+streams:
+  # Exemplos de teste (Sempre disponiveis)
+  demo_pattern: 
+    - rtsp://rtsp.stream/pattern#transport=tcp
+  demo_video: 
+    - rtsp://wowzaec2demo.streamlock.net/vod/mp4:BigBuckBunny_115k.mp4#transport=tcp
+  test_1770160631742:
+    - rtsp://maximoswill2@gmail.com:Mudar@123@192.168.1.15:8080/cam/realmonitor?channel=1&subtype=0
+  ip_camera_001:
+    - rtsp://maximoswill2@gmail.com:Mudar@123@192.168.1.15:8080/cam/realmonitor?channel=1&subtype=0
+
+log:
+  level: info
+  format: text

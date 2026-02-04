@@ -130,6 +130,7 @@ const Settings: React.FC = () => {
                   <th className="px-4 py-4 text-center">Operador</th>
                   <th className="px-4 py-4 text-center">Tático</th>
                   <th className="px-4 py-4 text-center">Cliente</th>
+                  <th className="px-4 py-4 text-center">Assist. Técnica</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-dark/50">
@@ -141,7 +142,7 @@ const Settings: React.FC = () => {
                         <span className={`text-xs font-bold ${isAdmin ? 'text-slate-200' : 'text-slate-500'}`}>{p.module}</span>
                       </div>
                     </td>
-                    {(['ADMIN', 'OPERADOR', 'TATICO', 'CLIENTE'] as UserRole[]).map((role) => (
+                    {(['ADMIN', 'OPERADOR', 'TATICO', 'CLIENTE', 'ASSISTENCIA_TECNICA'] as UserRole[]).map((role) => (
                       <td key={role} className="px-4 py-4 text-center">
                         <button
                           disabled={!isAdmin}

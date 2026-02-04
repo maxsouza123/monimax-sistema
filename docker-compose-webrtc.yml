@@ -1,0 +1,51 @@
+# Docker Compose para Monitoramento MoniMax com go2rtc
+# Execute: docker-compose -f docker-compose-webrtc.yml up -d
+
+services:
+  # Servidor go2rtc (Principal)
+  go2rtc:
+    image: alexxit/go2rtc
+    container_name: monimax-go2rtc
+    restart: unless-stopped
+    ports:
+      - "1984:1984"   # API/Web UI
+      - "8554:8554"   # RTSP Gateway
+      - "8555:8555/tcp" # WebRTC
+      - "8555:8555/udp" # WebRTC
+    volumes:
+      - ./go2rtc.yaml:/config/go2rtc.yaml
+    networks:
+      - monimax-network
+
+  # Simulador de Câmera (Porta alterada para evitar conflito)
+  rtsp-simulator:
+    image: ullaakut/rtspatt
+    container_name: monimax-rtsp-simulator
+    restart: unless-stopped
+    ports:
+      - "8556:8554" # Acessível via localhost:8556 fora do docker
+    environment:
+      - RTSP_ADDRESS=:8554
+      - RTSP_PROTOCOLS=tcp
+    networks:
+      - monimax-network
+
+  # Nginx (Removidos volumes que não existem no projeto)
+  nginx:
+    image: nginx:alpine
+    container_name: monimax-nginx
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    networks:
+      - monimax-network
+    depends_on:
+      - go2rtc
+
+networks:
+  monimax-network:
+    driver: bridge
+
+volumes:
+  go2rtc-data:
+

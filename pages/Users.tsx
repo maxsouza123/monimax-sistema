@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { UserRole } from '../types';
+import { useSync } from '../DataSynchronizer';
 
 interface User {
   id: string;
@@ -12,9 +13,11 @@ interface User {
   cep: string;
   city: string;
   status: 'ONLINE' | 'OFFLINE';
+  clientId?: string;
 }
 
 const Users: React.FC = () => {
+  const { clients, refreshData } = useSync();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -28,7 +31,8 @@ const Users: React.FC = () => {
     phone: '',
     address: '',
     cep: '',
-    city: ''
+    city: '',
+    clientId: ''
   });
 
   const fetchUsers = async () => {
@@ -49,7 +53,8 @@ const Users: React.FC = () => {
         address: p.address || '',
         cep: p.cep || '',
         city: p.city || '',
-        status: 'OFFLINE'
+        status: 'OFFLINE',
+        clientId: p.client_id
       }));
 
       setUsers(mappedUsers);
@@ -66,7 +71,7 @@ const Users: React.FC = () => {
 
   const handleOpenCreate = () => {
     setEditingUser(null);
-    setFormData({ name: '', email: '', role: 'OPERADOR', password: '', phone: '', address: '', cep: '', city: '' });
+    setFormData({ name: '', email: '', role: 'OPERADOR', password: '', phone: '', address: '', cep: '', city: '', clientId: '' });
     setShowAddForm(true);
   };
 
@@ -80,7 +85,8 @@ const Users: React.FC = () => {
       phone: user.phone || '',
       address: user.address || '',
       cep: user.cep || '',
-      city: user.city || ''
+      city: user.city || '',
+      clientId: user.clientId || ''
     });
     setShowAddForm(true);
   };
@@ -116,7 +122,8 @@ const Users: React.FC = () => {
           address: formData.address,
           cep: formData.cep,
           city: formData.city,
-          email: formData.email
+          email: formData.email,
+          client_id: formData.role === 'CLIENTE' ? formData.clientId : null
         }).eq('id', editingUser.id);
 
         if (error) throw error;
@@ -138,7 +145,8 @@ const Users: React.FC = () => {
             phone: formData.phone,
             address: formData.address,
             cep: formData.cep,
-            city: formData.city
+            city: formData.city,
+            clientId: formData.role === 'CLIENTE' ? formData.clientId : null
           }
         });
 
@@ -170,6 +178,7 @@ const Users: React.FC = () => {
       case 'OPERADOR': return 'border-green-500/50 text-green-500 bg-green-500/5';
       case 'TATICO': return 'border-indigo-500/50 text-indigo-400 bg-indigo-500/5';
       case 'CLIENTE': return 'border-slate-700 text-slate-500 bg-slate-500/5';
+      case 'ASSISTENCIA_TECNICA': return 'border-orange-500/50 text-orange-400 bg-orange-500/5';
       default: return 'border-slate-700 text-slate-500';
     }
   };
@@ -180,6 +189,7 @@ const Users: React.FC = () => {
       case 'OPERADOR': return 'OPERADOR';
       case 'TATICO': return 'TÁTICO';
       case 'CLIENTE': return 'CLIENTE';
+      case 'ASSISTENCIA_TECNICA': return 'ASSISTÊNCIA TÉCNICA';
       default: return role;
     }
   };
@@ -351,9 +361,29 @@ const Users: React.FC = () => {
                     <option value="OPERADOR">OPERADOR</option>
                     <option value="TATICO">TÁTICO (PRONTO ATENDIMENTO)</option>
                     <option value="CLIENTE">CLIENTE FINAL</option>
+                    <option value="ASSISTENCIA_TECNICA">ASSISTÊNCIA TÉCNICA</option>
                   </select>
                 </div>
               </div>
+
+              {formData.role === 'CLIENTE' && (
+                <div className="space-y-2 animate-in slide-in-from-top-2">
+                  <label className="text-[10px] font-black text-primary uppercase tracking-widest">Vincular ao Cliente (Grid de Cadastro)</label>
+                  <select
+                    value={formData.clientId}
+                    onChange={e => setFormData({ ...formData, clientId: e.target.value })}
+                    className="w-full bg-[#111621] border-primary/30 rounded-xl text-sm text-white p-3.5 focus:ring-2 focus:ring-primary outline-none cursor-pointer"
+                  >
+                    <option value="">Selecione o Cliente do Cadastro...</option>
+                    {clients.map(client => (
+                      <option key={client.id} value={client.id}>
+                        {client.name} {client.document ? ` - ${client.document}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[9px] text-slate-500 italic">Este usuário terá acesso apenas aos dispositivos vinculados a este cliente.</p>
+                </div>
+              )}
 
               {!editingUser && (
                 <div className="space-y-2">

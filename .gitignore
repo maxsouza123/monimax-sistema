@@ -39,3 +39,11 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+
+# Video Streaming Tools (Binarios pesados)
+ffmpeg.exe
+go2rtc.exe
+go2rtc.yaml
+*.zip
+*.bat
+

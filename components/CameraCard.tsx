@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { Camera } from '../types';
+import WebRTCPlayer from './WebRTCPlayer';
 
 interface CameraCardProps {
   camera: Camera;
@@ -13,14 +14,30 @@ const CameraCard: React.FC<CameraCardProps> = ({ camera }) => {
     unstable: 'bg-yellow-500'
   };
 
+  // Verifica se o ID da câmera parece ser um ID real de stream do go2rtc (ou demo)
+  // No seu caso, vamos considerar que se a latência não for falsa (padrão 10-60), podemos tentar o WebRTC
+  // Ou simplesmente usar o ID se for um dos IDs que você configurou no go2rtc.yaml
+  const isDemo = camera.id === 'demo_pattern' || camera.id === 'demo_video';
+  const hasStream = camera.status === 'online' && (isDemo || camera.ip);
+
   return (
     <div className="group relative aspect-video bg-black rounded-lg overflow-hidden border border-border-dark shadow-sm hover:border-primary/50 transition-all duration-300">
-      {/* Feed Image */}
-      <div 
-        className="absolute inset-0 bg-cover bg-center opacity-80 transition-transform duration-700 group-hover:scale-105 group-hover:opacity-100"
-        style={{ backgroundImage: `url('https://picsum.photos/seed/${camera.id}/400/225')` }}
-      />
-      
+      {/* Feed Area */}
+      {hasStream ? (
+        <WebRTCPlayer
+          streamUrl={camera.ip || camera.id}
+          className="absolute inset-0 opacity-80 group-hover:opacity-100 transition-opacity"
+        />
+      ) : (
+
+
+        /* Fallback Placeholder Image */
+        <div
+          className="absolute inset-0 bg-cover bg-center opacity-40 transition-transform duration-700 group-hover:scale-105 group-hover:opacity-60"
+          style={{ backgroundImage: `url('https://picsum.photos/seed/${camera.id}/400/225')` }}
+        />
+      )}
+
       {/* Static Overlay (Minimalist) */}
       <div className="absolute inset-x-0 bottom-0 p-2 bg-gradient-to-t from-black/80 to-transparent pointer-events-none transition-opacity duration-300 group-hover:opacity-0">
         <div className="flex items-center gap-2">
@@ -40,7 +57,7 @@ const CameraCard: React.FC<CameraCardProps> = ({ camera }) => {
           </div>
           {camera.client && (
             <div className="bg-primary/80 text-white text-[8px] font-black px-2 py-1 rounded uppercase tracking-widest shadow-lg">
-               {camera.client}
+              {camera.client}
             </div>
           )}
         </div>
@@ -50,8 +67,8 @@ const CameraCard: React.FC<CameraCardProps> = ({ camera }) => {
           <div className="flex items-center justify-between text-[9px] text-slate-300 font-medium">
             <span className="opacity-80">{camera.brand}</span>
             <div className="flex items-center gap-2">
-               <span className="font-mono">{camera.ip}</span>
-               {camera.status !== 'offline' && <span className="text-primary">{camera.latency}ms</span>}
+              <span className="font-mono">{camera.ip}</span>
+              {camera.status !== 'offline' && <span className="text-primary">{camera.latency}ms</span>}
             </div>
           </div>
         </div>

@@ -3,11 +3,11 @@ import { useSync } from '../DataSynchronizer';
 import { AlertSeverity } from '../types';
 
 const Events: React.FC = () => {
-  const { events, kanbanCards, kanbanColumns, isSyncing } = useSync();
+  const { events, kanbanCards, kanbanColumns, serviceOrders, clients, isSyncing } = useSync();
   const [filter, setFilter] = useState<string>('ALL');
   const [search, setSearch] = useState('');
 
-  // Mesclar eventos reais com os cards do Kanban para ter um log unificado
+  // Mesclar eventos reais com os cards do Kanban e Ordens de Serviço para ter um log unificado
   const combinedLogs = [
     ...events.map(e => ({
       id: e.id,
@@ -31,7 +31,17 @@ const Events: React.FC = () => {
         description: c.title + (c.description ? `: ${c.description}` : ''),
         source: 'MANUAL'
       };
-    })
+    }),
+    ...serviceOrders.map(os => ({
+      id: os.id,
+      timestamp: new Date(os.createdAt).toLocaleTimeString(),
+      fullDate: new Date(os.createdAt),
+      severity: os.priority === 'URGENT' ? 'CRITICAL' : os.priority === 'HIGH' ? 'WARNING' : 'INFO',
+      type: 'ORDEM DE SERVIÇO',
+      location: os.location || 'LOCAL NÃO INFORMADO',
+      description: `[${os.status}] ${os.title}: ${os.description}${os.clientId ? ` (CLIENTE: ${clients.find(c => c.id === os.clientId)?.name})` : ''}`,
+      source: 'TECNICO'
+    }))
   ].sort((a, b) => b.fullDate.getTime() - a.fullDate.getTime());
 
   const filteredLogs = combinedLogs.filter(e => {
@@ -146,8 +156,11 @@ const Events: React.FC = () => {
                     {log.description}
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <span className={`text-[8px] font-black px-2 py-0.5 rounded-md ${log.source === 'MANUAL' ? 'bg-purple-500/10 text-purple-400' : 'bg-green-500/10 text-green-400'}`}>
-                      {log.source === 'MANUAL' ? 'OPERAÇÃO' : 'IA-SYSTEM'}
+                    <span className={`text-[8px] font-black px-2 py-0.5 rounded-md ${log.source === 'MANUAL' ? 'bg-purple-500/10 text-purple-400' :
+                        log.source === 'TECNICO' ? 'bg-orange-500/10 text-orange-400' :
+                          'bg-green-500/10 text-green-400'
+                      }`}>
+                      {log.source === 'MANUAL' ? 'OPERAÇÃO' : log.source === 'TECNICO' ? 'TÉCNICO' : 'IA-SYSTEM'}
                     </span>
                   </td>
                 </tr>

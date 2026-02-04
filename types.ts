@@ -96,7 +96,7 @@ export interface SuspiciousPlate {
   createdAt: string;
 }
 
-export type UserRole = 'ADMIN' | 'OPERADOR' | 'TATICO' | 'CLIENTE';
+export type UserRole = 'ADMIN' | 'OPERADOR' | 'TATICO' | 'CLIENTE' | 'ASSISTENCIA_TECNICA';
 
 export interface ModulePermission {
   id: string;
@@ -118,6 +118,7 @@ export interface UserProfile {
   city?: string;
   avatarUrl?: string;
   department?: string;
+  clientId?: string;
 }
 
 export interface AlertRule {
@@ -144,7 +145,25 @@ export interface KanbanCard {
   severity: string;
   position: number;
   createdAt: string;
+  createdBy?: string;
+  assignedTo?: string;
 }
+
+export interface ServiceOrder {
+  id: string;
+  clientId?: string;
+  deviceId?: string;
+  title: string;
+  description: string;
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+  status: 'OPEN' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+  technicianId?: string;
+  scheduledDate?: string;
+  completedAt?: string;
+  createdAt: string;
+  location?: string;
+}
+
 export interface SystemSettings {
   id: string;
   brandName: string;

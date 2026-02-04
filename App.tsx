@@ -15,6 +15,7 @@ import Profile from './pages/Profile';
 import Login from './pages/Login';
 import Storage from './pages/Storage';
 import SuspiciousPlates from './pages/SuspiciousPlates';
+import ServiceOrders from './pages/ServiceOrders';
 import { DataSynchronizer } from './DataSynchronizer';
 
 import { supabase } from './supabaseClient';
@@ -72,6 +73,7 @@ const AppRoutes = () => {
       <Route path="/storage" element={<ProtectedRoute><Storage /></ProtectedRoute>} />
       <Route path="/plates" element={<ProtectedRoute><SuspiciousPlates /></ProtectedRoute>} />
       <Route path="/events" element={<ProtectedRoute><Events /></ProtectedRoute>} />
+      <Route path="/service-orders" element={<ProtectedRoute><ServiceOrders /></ProtectedRoute>} />
 
       <Route path="/network" element={<ProtectedRoute><Network /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />

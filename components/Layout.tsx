@@ -74,6 +74,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               {hasPermission('Clientes') && <NavItem to="/clients" icon="business_center" label="Clientes" isCollapsed={isCollapsed} />}
               {hasPermission('Usuários') && <NavItem to="/users" icon="group" label="Usuários" isCollapsed={isCollapsed} />}
               {hasPermission('Log de Eventos') && <NavItem to="/events" icon="history" label="Log de Eventos" isCollapsed={isCollapsed} />}
+              {hasPermission('Ordens de Serviço') && <NavItem to="/service-orders" icon="engineering" label="Ordens de Serviço" isCollapsed={isCollapsed} />}
               {hasPermission('Rede') && <NavItem to="/network" icon="analytics" label="Rede" isCollapsed={isCollapsed} />}
               {hasPermission('Configurações') && <NavItem to="/settings" icon="settings" label="Configurações" isCollapsed={isCollapsed} />}
             </>

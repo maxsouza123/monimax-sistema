@@ -4,6 +4,7 @@ import { useSync } from '../DataSynchronizer';
 import { Link } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import { SupabaseMapper } from '../supabaseMapper';
+import WebRTCPlayer from '../components/WebRTCPlayer';
 
 const DEVICE_BRANDS = [
   "ONVIF",
@@ -40,6 +41,9 @@ const Devices: React.FC = () => {
 
   // Form State
   const [isSaving, setIsSaving] = useState(false);
+  const [isTesting, setIsTesting] = useState(false);
+  const [testSuccess, setTestSuccess] = useState<boolean | null>(null);
+  const [previewStream, setPreviewStream] = useState<string | null>(null);
   const [remoteAddress, setRemoteAddress] = useState('');
   const [formData, setFormData] = useState({
     name: '',
@@ -61,6 +65,72 @@ const Devices: React.FC = () => {
   const [isScanning, setIsScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
   const [foundDevices, setFoundDevices] = useState<{ ip: string, name: string, brand: string, port: number, type?: string }[]>([]);
+
+  const generateRtspUrl = () => {
+    const { host, port, user, pass, protocol } = formData;
+
+    // Se o host já for uma URL completa ou um nome de stream interno
+    if (host.startsWith('rtsp://') || (!host.includes('.') && !host.includes(':'))) {
+      return host;
+    }
+
+
+    const auth = user && pass ? `${user}:${pass}@` : '';
+    const p = port ? `:${port}` : '';
+
+    switch (protocol) {
+      case 'INTELBRAS':
+      case 'DAHUA TECHNOLOGY':
+        return `rtsp://${auth}${host}${p}/cam/realmonitor?channel=1&subtype=0`;
+      case 'HIKVISION':
+      case 'HILOOK':
+        return `rtsp://${auth}${host}${p}/Streaming/Channels/101`;
+      case 'TP-LINK':
+        return `rtsp://${auth}${host}${p}/stream1`;
+      case 'RTSP (STREAM DIRETO)':
+        return `rtsp://${auth}${host}${p}/stream`;
+      default:
+        // Padrão ONVIF genérico
+        return `rtsp://${auth}${host}${p}/live/ch1`;
+    }
+  };
+
+  const testConnection = async () => {
+    if (!formData.host) {
+      alert("IP/Host é obrigatório para testar.");
+      return;
+    }
+
+    setIsTesting(true);
+    setTestSuccess(null);
+    setPreviewStream(null);
+
+    const rtspUrl = generateRtspUrl();
+    const streamName = `test_${Date.now()}`;
+    const hostname = window.location.hostname;
+    const isLocal = hostname === 'localhost' || hostname === '127.0.0.1';
+    const go2rtcUrl = 'http://127.0.0.1:1984';
+
+
+    try {
+      // Registrar stream temporário no go2rtc para teste
+      const response = await fetch(`${go2rtcUrl}/api/streams?name=${streamName}&src=${encodeURIComponent(rtspUrl)}`, {
+        method: 'PUT'
+      });
+
+      if (response.ok) {
+        setTestSuccess(true);
+        setPreviewStream(streamName);
+      } else {
+        throw new Error('Falha ao comunicar com o servidor go2rtc');
+      }
+    } catch (err) {
+      console.error('Erro no teste:', err);
+      setTestSuccess(false);
+    } finally {
+      setIsTesting(false);
+    }
+  };
 
   const filteredDevices = devices.filter(d => {
     if (filter === 'ALL') return true;
@@ -106,6 +176,19 @@ const Devices: React.FC = () => {
         const { error } = await supabase.from('devices').insert([deviceToSave]);
         if (error) throw error;
       }
+
+      // Se for câmera, registrar permanentemente no go2rtc
+      if (formData.type === 'CAMERA') {
+        const rtspUrl = generateRtspUrl();
+        const streamName = formData.name.toLowerCase().replace(/\s+/g, '_');
+        const go2rtcUrl = 'http://127.0.0.1:1984';
+
+        // Registra o stream com suporte a transcodificação se necessário
+        await fetch(`${go2rtcUrl}/api/streams?name=${streamName}&src=${encodeURIComponent(rtspUrl)}`, {
+          method: 'PUT'
+        }).catch(e => console.warn('Falha no registro go2rtc:', e));
+      }
+
 
       await refreshData();
       closeModal();
@@ -161,6 +244,8 @@ const Devices: React.FC = () => {
     setShowAddForm(false);
     setEditingDeviceId(null);
     setRemoteAddress('');
+    setTestSuccess(null);
+    setPreviewStream(null);
     setFormData({
       name: '',
       type: 'CAMERA',
@@ -549,6 +634,40 @@ const Devices: React.FC = () => {
                         </div>
                       </div>
                     )}
+                  </div>
+
+                  <div className="flex flex-col gap-4 mt-2">
+                    {previewStream && (
+                      <div className="space-y-2 animate-in fade-in duration-500">
+                        <label className="text-[10px] font-black text-primary uppercase tracking-widest flex items-center gap-2">
+                          <span className="size-1.5 bg-primary rounded-full animate-pulse"></span>
+                          Visualização ao Vivo (Teste)
+                        </label>
+                        <div className="aspect-video w-full rounded-xl overflow-hidden border border-primary/30 shadow-lg shadow-primary/10">
+                          <WebRTCPlayer streamUrl={previewStream} className="w-full h-full" />
+                        </div>
+                      </div>
+                    )}
+
+                    <button
+                      onClick={testConnection}
+                      disabled={isTesting || !formData.host}
+                      className={`w-full py-3 border border-border-dark text-[10px] font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2 ${testSuccess === true ? 'bg-green-500/10 text-green-500 border-green-500/30' :
+                        testSuccess === false ? 'bg-red-500/10 text-red-500 border-red-500/30' :
+                          'bg-background-dark text-slate-400 hover:text-white hover:border-slate-600'
+                        }`}
+                    >
+                      {isTesting ? (
+                        <div className="size-3 border-2 border-slate-500 border-t-white rounded-full animate-spin"></div>
+                      ) : (
+                        <span className="material-symbols-outlined text-sm">
+                          {testSuccess === true ? 'cloud_done' : testSuccess === false ? 'cloud_off' : 'barcode_scanner'}
+                        </span>
+                      )}
+                      {testSuccess === true ? 'Conexão Estabelecida - Verificando Stream' :
+                        testSuccess === false ? 'Falha na Comunicação' :
+                          'Testar Conexão e Ativar Câmera'}
+                    </button>
                   </div>
 
                   <button

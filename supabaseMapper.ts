@@ -1,5 +1,5 @@
 
-import { Device, SecurityEvent, Camera, AlertSeverity, Client, StorageConfig, SuspiciousPlate, UserRole, UserProfile, ModulePermission, AlertRule, KanbanColumn, KanbanCard, ChatMessage, SystemSettings } from './types';
+import { Device, SecurityEvent, Camera, AlertSeverity, Client, StorageConfig, SuspiciousPlate, UserRole, UserProfile, ModulePermission, AlertRule, KanbanColumn, KanbanCard, ChatMessage, SystemSettings, ServiceOrder } from './types';
 
 /**
  * Mapeador de Dados (MapeadorDeDados)
@@ -229,6 +229,8 @@ export const SupabaseMapper = {
             severity: dbCard.severity,
             position: dbCard.position,
             createdAt: dbCard.created_at,
+            createdBy: dbCard.created_by,
+            assignedTo: dbCard.assigned_to,
         };
     },
 
@@ -239,6 +241,8 @@ export const SupabaseMapper = {
             description: card.description,
             severity: card.severity,
             position: card.position,
+            created_by: card.createdBy,
+            assigned_to: card.assignedTo,
         };
     },
 
@@ -255,6 +259,7 @@ export const SupabaseMapper = {
             city: dbProfile.city,
             avatarUrl: dbProfile.avatar_url,
             department: dbProfile.department,
+            clientId: dbProfile.client_id,
         };
     },
 
@@ -266,7 +271,8 @@ export const SupabaseMapper = {
             cep: profile.cep,
             city: profile.city,
             avatar_url: profile.avatarUrl,
-            department: profile.department
+            department: profile.department,
+            client_id: profile.clientId
         };
     },
 
@@ -323,7 +329,39 @@ export const SupabaseMapper = {
         return {
             brand_name: settings.brandName,
             brand_tagline: settings.brandTagline,
-            logo_url: settings.logoUrl,
+        };
+    },
+
+    // Ordens de Serviço (Service Orders)
+    toServiceOrder(dbOrder: any): ServiceOrder {
+        return {
+            id: dbOrder.id,
+            clientId: dbOrder.client_id,
+            deviceId: dbOrder.device_id,
+            title: dbOrder.title,
+            description: dbOrder.description,
+            priority: dbOrder.priority,
+            status: dbOrder.status,
+            technicianId: dbOrder.technician_id,
+            scheduledDate: dbOrder.scheduled_date,
+            completedAt: dbOrder.completed_at,
+            createdAt: dbOrder.created_at,
+            location: dbOrder.location,
+        };
+    },
+
+    fromServiceOrder(order: Partial<ServiceOrder>): any {
+        return {
+            client_id: order.clientId,
+            device_id: order.deviceId,
+            title: order.title,
+            description: order.description,
+            priority: order.priority,
+            status: order.status,
+            technician_id: order.technicianId,
+            scheduled_date: order.scheduledDate,
+            completed_at: order.completedAt,
+            location: order.location,
         };
     }
 };
